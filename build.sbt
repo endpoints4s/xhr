@@ -1,24 +1,50 @@
-import EndpointsSettings._
+import xerial.sbt.Sonatype.GitHubHosting
+import com.lightbend.paradox.markdown.Writer
 import com.typesafe.tools.mima.core.{ProblemFilters, DirectMissingMethodProblem}
+
+inThisBuild(
+  List(
+    versionPolicyIntention := Compatibility.BinaryAndSourceCompatible,
+    organization := "org.endpoints4s",
+    sonatypeProjectHosting := Some(
+      GitHubHosting("endpoints4s", "xhr", "julien@richard-foy.fr")
+    ),
+    homepage := Some(sonatypeProjectHosting.value.get.scmInfo.browseUrl),
+    licenses := Seq(
+      "MIT License" -> url("http://opensource.org/licenses/mit-license.php")
+    ),
+    developers := List(
+      Developer(
+        "julienrf",
+        "Julien Richard-Foy",
+        "julien@richard-foy.fr",
+        url("http://julien.richard-foy.fr")
+      )
+    ),
+    scalaVersion := "2.13.10",
+    crossScalaVersions := Seq("2.13.10", "3.1.3", "2.12.13"),
+    versionPolicyIgnoredInternalDependencyVersions := Some("^\\d+\\.\\d+\\.\\d+\\+\\d+".r)
+  )
+)
 
 val `xhr-client` =
   project
     .in(file("client"))
     .enablePlugins(ScalaJSPlugin)
-    .configure(_.disablePlugins(ScoverageSbtPlugin))
     .settings(
-      publishSettings,
-      `scala 2.12 to dotty`,
       name := "xhr-client",
       mimaBinaryIssueFilters ++= Seq(
         // Was private to Scala users
         ProblemFilters.exclude[DirectMissingMethodProblem]("endpoints4s.xhr.EndpointsSettings.this")
       ),
-      //disable coverage for scala.js: https://github.com/scoverage/scalac-scoverage-plugin/issues/196
-      coverageEnabled := false,
       libraryDependencies ++= Seq(
+        "org.endpoints4s" %%% "algebra" % "1.10.0",
+        "org.endpoints4s" %%% "openapi" % "4.4.0",
         "org.scala-js" %%% "scalajs-dom" % "2.4.0",
-        "org.scalatest" %%% "scalatest" % scalaTestVersion % Test
+        "org.scalatest" %%% "scalatest" % "3.2.17" % Test,
+        "org.endpoints4s" %%% "algebra-testkit" % "4.1.0" % Test,
+        "org.endpoints4s" %%% "algebra-circe-testkit" % "4.1.0" % Test,
+        "org.endpoints4s" %%% "json-schema-generic" % "1.10.0" % Test,
       ),
       Test / jsEnv := new org.scalajs.jsenv.selenium.SeleniumJSEnv(
         new org.openqa.selenium.chrome.ChromeOptions().addArguments(
@@ -36,25 +62,13 @@ val `xhr-client` =
         //org.scalajs.jsenv.selenium.SeleniumJSEnv.Config().withKeepAlive(true)
       )
     )
-    .dependsOn(
-      LocalProject("algebraJS"),
-      LocalProject("openapiJS"),
-      LocalProject("algebra-testkitJS") % Test,
-      LocalProject("algebra-circe-testkitJS") % Test,
-      LocalProject("json-schema-genericJS") % Test
-    )
 
 val `xhr-client-faithful` =
   project
     .in(file("client-faithful"))
     .enablePlugins(ScalaJSPlugin)
-    .configure(_.disablePlugins(ScoverageSbtPlugin))
     .settings(
-      publishSettings,
-      `scala 2.12 to dotty`,
       name := "xhr-client-faithful",
-      //disable coverage for scala.js: https://github.com/scoverage/scalac-scoverage-plugin/issues/196
-      coverageEnabled := false,
       libraryDependencies += ("org.julienrf" %%% "faithful" % "2.0.0")
         .cross(CrossVersion.for3Use2_13),
       publish / skip := scalaBinaryVersion.value.startsWith("3"),
@@ -80,14 +94,13 @@ val `xhr-client-circe` =
   project
     .in(file("client-circe"))
     .enablePlugins(ScalaJSPlugin)
-    .configure(_.disablePlugins(ScoverageSbtPlugin))
     .settings(
-      publishSettings,
-      `scala 2.12 to dotty`,
       name := "xhr-client-circe",
-      //disable coverage for scala.js: https://github.com/scoverage/scalac-scoverage-plugin/issues/196
-      coverageEnabled := false,
-      libraryDependencies += "io.circe" %%% "circe-parser" % circeVersion,
+      libraryDependencies ++= Seq(
+        "io.circe" %%% "circe-parser" % "0.14.1",
+        "org.endpoints4s" %%% "algebra-circe" % "2.4.0",
+        "org.endpoints4s" %%% "json-schema-circe" % "2.4.0",
+      ),
       Test / jsEnv := new org.scalajs.jsenv.selenium.SeleniumJSEnv(
         new org.openqa.selenium.chrome.ChromeOptions().addArguments(
           // recommended options
@@ -106,6 +119,63 @@ val `xhr-client-circe` =
     )
     .dependsOn(
       `xhr-client` % "test->test;compile->compile",
-      LocalProject("algebra-circeJS"),
-      LocalProject("json-schema-circeJS")
     )
+
+val documentation =
+  project.in(file("documentation"))
+    .enablePlugins(
+      ParadoxMaterialThemePlugin,
+      ParadoxPlugin,
+      ParadoxSitePlugin,
+      ScalaUnidocPlugin,
+      SitePreviewPlugin
+    )
+    .settings(
+      publish / skip := true,
+      autoAPIMappings := true,
+      Compile / paradoxMaterialTheme := {
+        val theme = (Compile / paradoxMaterialTheme).value
+        val repository =
+          (ThisBuild / sonatypeProjectHosting).value.get.scmInfo.browseUrl.toURI
+        theme
+          .withRepository(repository)
+          .withSocial(repository)
+          .withCustomStylesheet("snippets.css")
+      },
+      paradoxProperties ++= Map(
+        "version" -> version.value,
+        "scaladoc.base_url" -> s".../${(packageDoc / siteSubdirName).value}",
+        "github.base_url" -> s"${homepage.value.get}/blob/v${version.value}"
+      ),
+      paradoxDirectives += ((_: Writer.Context) =>
+        org.endpoints4s.paradox.coordinates.CoordinatesDirective
+      ),
+      ScalaUnidoc / unidoc / scalacOptions ++= Seq(
+        "-implicits",
+        "-diagrams",
+        "-groups",
+        "-doc-source-url",
+        s"${homepage.value.get}/blob/v${version.value}€{FILE_PATH}.scala",
+        "-sourcepath",
+        (ThisBuild / baseDirectory).value.absolutePath
+      ),
+      ScalaUnidoc / unidoc / unidocProjectFilter := inProjects(
+        `xhr-client`,
+        `xhr-client-faithful`,
+        `xhr-client-circe`,
+      ),
+      packageDoc / siteSubdirName := "api",
+      addMappingsToSiteDir(
+        ScalaUnidoc / packageDoc / mappings,
+        packageDoc / siteSubdirName
+      ),
+    )
+
+val xhr =
+  project.in(file("."))
+    .aggregate(`xhr-client`, `xhr-client-circe`, `xhr-client-faithful`)
+    .settings(
+      publish / skip := true
+    )
+
+Global / onChangedBuildSource := ReloadOnSourceChanges
