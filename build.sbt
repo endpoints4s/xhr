@@ -22,7 +22,7 @@ inThisBuild(
       )
     ),
     scalaVersion := "2.13.10",
-    crossScalaVersions := Seq("2.13.10", "3.1.3", "2.12.13"),
+    crossScalaVersions := Seq("2.13.10", "2.12.13"),
     versionPolicyIgnoredInternalDependencyVersions := Some("^\\d+\\.\\d+\\.\\d+\\+\\d+".r)
   )
 )
@@ -41,7 +41,6 @@ val `xhr-client` =
         "org.endpoints4s" %%% "algebra" % "1.10.0",
         "org.endpoints4s" %%% "openapi" % "4.4.0",
         "org.scala-js" %%% "scalajs-dom" % "2.4.0",
-        "org.scalatest" %%% "scalatest" % "3.2.17" % Test,
         "org.endpoints4s" %%% "algebra-testkit" % "4.1.0" % Test,
         "org.endpoints4s" %%% "algebra-circe-testkit" % "4.1.0" % Test,
         "org.endpoints4s" %%% "json-schema-generic" % "1.10.0" % Test,

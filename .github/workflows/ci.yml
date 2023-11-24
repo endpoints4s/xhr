@@ -35,19 +35,6 @@ jobs:
       - run: docker run -d -p 8080:8080 julienrf/endpoints4s-stubserver:1.1.0
       - run: sbt "++ 2.13 ;test ;documentation/makeSite"
 
-  test3:
-    name: Compile (Scala 3)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-java@v3
-        with:
-          distribution: temurin
-          java-version: 11
-          cache: sbt
-      - run: npm install jsdom@12.2.0
-      - run: sbt "++ 3 compile"
-
   versionPolicy:
     name: Check versioning policy and code style
     runs-on: ubuntu-latest
